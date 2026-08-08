@@ -1,87 +1,97 @@
 # Test-Python-Lab
 
-A hands-on Python learning repository focused on building a strong foundation for automation testing, scripting, and DevOps.
+A hands-on Python learning repository focused on automation testing, scripting, web scraping, and DevOps.
 
-## Objectives
+## Current Automation Examples
 
-- Learn Python fundamentals
-- Practice object-oriented programming
-- Work with files and JSON
-- Exception handling
-- API automation
-- Database connectivity
-- Unit testing with pytest
-- Automation utilities
-- Web scraping with Python libraries from pip
+### 1. The Hindu headline scraper
 
-## Example: Fetch headlines from The Hindu
+`scrape.py` fetches The Hindu headlines and stores them in `Headlines.json`.
 
-This example uses `requests` + `beautifulsoup4` to fetch and print the latest headlines from The Hindu homepage.
+### 2. Tamil news headline report
 
-### Install dependencies
+`scrape_tamil_news.py` fetches headlines from:
+
+- [Dinamalar](https://www.dinamalar.com/)
+- [Daily Thanthi](https://www.dailythanthi.com/)
+
+It generates a **single self-contained HTML report** named `tamil_news_report.html`. The report contains inline CSS, so it can be opened directly without additional assets.
+
+## Tamil News Report
+
+Run locally:
 
 ```bash
-pip install requests beautifulsoup4
+python -m pip install -r requirements.txt
+python scrape_tamil_news.py
 ```
 
-### Python script
+Open the generated report:
 
-Create a file like `the_hindu_headlines.py`:
+```text
+tamil_news_report.html
+```
 
-```python
-import requests
-from bs4 import BeautifulSoup
+The report contains:
 
-URL = "https://www.thehindu.com/"
+- Total headline count
+- Dinamalar headlines with article links
+- Daily Thanthi headlines with article links
+- Fetch timestamp
+- Source warnings when a site cannot be reached
+- Responsive, self-contained HTML/CSS
 
+## GitHub Actions CI/CD
 
-def fetch_headlines(url: str):
-    headers = {
-        "User-Agent": (
-            "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 "
-            "(KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36"
-        )
-    }
+The workflow is located at:
 
-    response = requests.get(url, headers=headers, timeout=20)
-    response.raise_for_status()
+```text
+.github/workflows/tamil-news-report.yml
+```
 
-    soup = BeautifulSoup(response.text, "html.parser")
-    headlines = []
+Every push to `main` or manual workflow execution performs:
 
-    # Collect headlines from common heading tags
-    for tag in soup.find_all(["h1", "h2", "h3"]):
-        text = tag.get_text(strip=True)
-        if text and text not in headlines:
-            headlines.append(text)
+```text
+Checkout
+   ↓
+Python 3.12
+   ↓
+Install requirements.txt
+   ↓
+Run scraper
+   ↓
+Validate tamil_news_report.html
+   ↓
+Upload HTML artifact
+   ↓
+Deploy report to GitHub Pages
+```
 
-    return headlines
+The workflow intentionally fails if neither news source produces headlines or if the generated report is missing/invalid.
 
+## Dependencies
 
-if __name__ == "__main__":
-    try:
-        headlines = fetch_headlines(URL)
-        print("The Hindu Headlines:\n")
-        for i, headline in enumerate(headlines[:20], start=1):
-            print(f"{i}. {headline}")
-    except requests.RequestException as exc:
-        print(f"Failed to fetch headlines: {exc}")
+```text
+requests
+beautifulsoup4
+```
+
+Install with:
+
+```bash
+pip install -r requirements.txt
 ```
 
 ## Project Structure
 
 ```text
 Test-Python-Lab/
-├── basics/
-├── oops/
-├── collections/
-├── exceptions/
-├── file_handling/
-├── json/
-├── api/
-├── database/
-├── pytest/
-├── utilities/
+├── scrape.py
+├── scrape_tamil_news.py
+├── requirements.txt
+├── .github/
+│   └── workflows/
+│       └── tamil-news-report.yml
 └── README.md
 ```
 
@@ -90,32 +100,6 @@ Test-Python-Lab/
 - Python 3.12+
 - VS Code or PyCharm
 - Git
-
-## Installation
-
-```bash
-git clone https://github.com/mgbalaji89/Test-Python-Lab.git
-cd Test-Python-Lab
-python -m venv .venv
-```
-
-Activate the virtual environment and install dependencies:
-
-```bash
-pip install -r requirements.txt
-```
-
-## Run
-
-```bash
-python filename.py
-```
-
-Or run the scraper example:
-
-```bash
-python the_hindu_headlines.py
-```
 
 ## Future Topics
 
@@ -126,6 +110,8 @@ python the_hindu_headlines.py
 - Logging
 - Docker
 - GitHub Actions CI/CD
+- Scheduled web-scraping jobs
+- Automated HTML reporting
 
 ## Author
 
