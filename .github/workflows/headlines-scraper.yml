@@ -1,0 +1,53 @@
+name: Test Hindu Headlines Scraper
+
+on:
+  push:
+    branches: ["main"]
+  workflow_dispatch:
+
+jobs:
+  scrape-headlines:
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+          cache: "pip"
+
+      - name: Install dependencies
+        run: |
+          python -m pip install --upgrade pip
+          pip install requests beautifulsoup4
+
+      - name: Run Hindu headlines scraper
+        run: python scrape.py
+
+      - name: Validate generated JSON
+        run: |
+          python - <<'PY'
+          import json
+          from pathlib import Path
+
+          output = Path("Headlines.json")
+          if not output.exists():
+              raise SystemExit("Headlines.json was not generated")
+
+          data = json.loads(output.read_text(encoding="utf-8"))
+          headlines = data.get("headlines", [])
+
+          if not headlines:
+              raise SystemExit("Scraper returned zero headlines")
+
+          print(f"Validation passed: {len(headlines)} headlines found")
+          PY
+
+      - name: Upload headlines artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: hindu-headlines
+          path: Headlines.json
