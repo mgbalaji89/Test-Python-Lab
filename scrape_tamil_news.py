@@ -45,8 +45,6 @@ def fetch_headlines(source_name: str, url: str):
     headlines = []
     seen = set()
 
-    # Both sites use multiple page sections, so intentionally inspect common
-    # heading/link combinations instead of depending on one CSS class.
     for tag in soup.find_all(["h1", "h2", "h3", "h4"]):
         link = tag.find("a", href=True) or (tag if tag.name == "a" else None)
         if not link:
@@ -77,8 +75,9 @@ def fetch_headlines(source_name: str, url: str):
 
 def render_source_card(source_name: str, url: str, headlines: list[dict]):
     items = "\n".join(
-        f'<li><a href="{escape(item["url"], quote=True)}" target="_blank" rel="noopener noreferrer">'
-        f'{escape(item["title"])}'</a></li>'
+        f'<li><a href="{escape(item["url"], quote=True)}" '
+        f'target="_blank" rel="noopener noreferrer">'
+        f'{escape(item["title"])}</a></li>'
         for item in headlines
     )
 
@@ -100,7 +99,9 @@ def render_source_card(source_name: str, url: str, headlines: list[dict]):
 
 
 def build_report(results: dict, errors: dict):
-    fetched_at = datetime.now(timezone.utc).astimezone().strftime("%d %b %Y, %I:%M:%S %p %Z")
+    fetched_at = datetime.now(timezone.utc).astimezone().strftime(
+        "%d %b %Y, %I:%M:%S %p %Z"
+    )
     total = sum(len(items) for items in results.values())
 
     cards = []
@@ -113,7 +114,10 @@ def build_report(results: dict, errors: dict):
             f"<li><strong>{escape(name)}:</strong> {escape(message)}</li>"
             for name, message in errors.items()
         )
-        error_html = f'<div class="warning"><strong>Source warnings</strong><ul>{error_items}</ul></div>'
+        error_html = (
+            '<div class="warning"><strong>Source warnings</strong>'
+            f"<ul>{error_items}</ul></div>"
+        )
 
     return f"""<!DOCTYPE html>
 <html lang="ta">
@@ -192,7 +196,6 @@ def main():
     OUTPUT_FILE.write_text(report, encoding="utf-8")
     print(f"Report written to {OUTPUT_FILE}")
 
-    # CI should fail when neither source produced any headlines.
     if not any(results.values()):
         raise SystemExit("No headlines were captured from either source.")
 
