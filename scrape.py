@@ -1,13 +1,14 @@
 """Fetch The Hindu headlines and save them as JSON.
 
 Dependencies:
-    pip install requests beautifulsoup4
+    pip install -r requirements.txt
 
 Run:
     python scrape.py
 """
 
 import json
+import sys
 from datetime import datetime, timezone
 
 import requests
@@ -21,7 +22,8 @@ HEADERS = {
         "Mozilla/5.0 (Windows NT 10.0; Win64; x64) "
         "AppleWebKit/537.36 (KHTML, like Gecko) "
         "Chrome/131.0.0.0 Safari/537.36"
-    )
+    ),
+    "Accept-Language": "en-IN,en;q=0.9",
 }
 
 
@@ -34,8 +36,6 @@ def fetch_headlines():
     headlines = []
     seen = set()
 
-    # The Hindu changes its page structure from time to time, so inspect
-    # common heading/link combinations rather than depending on one CSS class.
     for tag in soup.find_all(["h1", "h2", "h3", "h4"]):
         link = tag.find("a", href=True)
         if not link:
@@ -54,10 +54,7 @@ def fetch_headlines():
             continue
 
         seen.add(title)
-        headlines.append({
-            "title": title,
-            "url": href,
-        })
+        headlines.append({"title": title, "url": href})
 
     return headlines
 
@@ -78,6 +75,10 @@ def save_to_json(headlines):
 def main():
     try:
         headlines = fetch_headlines()
+
+        if not headlines:
+            raise RuntimeError("No headlines were found on The Hindu homepage.")
+
         save_to_json(headlines)
 
         print(f"Fetched {len(headlines)} headlines.")
@@ -86,11 +87,15 @@ def main():
         for index, headline in enumerate(headlines, start=1):
             print(f"{index}. {headline['title']}")
 
+        return 0
+
     except requests.RequestException as exc:
-        print(f"Unable to fetch The Hindu: {exc}")
+        print(f"ERROR: Unable to fetch The Hindu: {exc}")
+        return 1
     except Exception as exc:
-        print(f"Unexpected error: {exc}")
+        print(f"ERROR: {exc}")
+        return 1
 
 
 if __name__ == "__main__":
-    main()
+    sys.exit(main())
