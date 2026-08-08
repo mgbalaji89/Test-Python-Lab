@@ -14,6 +14,7 @@ Run:
 from datetime import datetime, timezone
 from html import escape
 from pathlib import Path
+from urllib.parse import urljoin, urlparse
 
 import requests
 from bs4 import BeautifulSoup
@@ -25,51 +26,141 @@ SOURCES = {
 
 OUTPUT_FILE = Path("tamil_news_report.html")
 MAX_HEADLINES = 30
+REQUEST_TIMEOUT = 30
 
 HEADERS = {
     "User-Agent": (
-        "Mozilla/5.0 (Windows NT 10.0; Win64; x64) "
+        "Mozilla/5.0 (X11; Linux x86_64) "
         "AppleWebKit/537.36 (KHTML, like Gecko) "
         "Chrome/131.0.0.0 Safari/537.36"
     ),
+    "Accept": (
+        "text/html,application/xhtml+xml,application/xml;q=0.9,"
+        "image/avif,image/webp,*/*;q=0.8"
+    ),
     "Accept-Language": "ta-IN,ta;q=0.9,en-US;q=0.8,en;q=0.7",
+    "Cache-Control": "no-cache",
+    "Pragma": "no-cache",
+    "Upgrade-Insecure-Requests": "1",
+}
+
+# These are navigation/UI labels rather than news headlines.
+EXCLUDED_TEXT = {
+    "read more",
+    "read more >>",
+    "visit site",
+    "home",
+    "login",
+    "subscribe",
+    "subscription",
+    "live",
+    "podcast",
+    "video",
+    "photos",
 }
 
 
+def is_tamil_text(text: str) -> bool:
+    """Return True when text contains at least one Tamil Unicode character."""
+    return any("\u0b80" <= char <= "\u0bff" for char in text)
+
+
+def is_candidate_link(base_url: str, href: str, title: str) -> bool:
+    """Filter navigation, external links and obviously non-story links."""
+    if not href or not title or len(title) < 8:
+        return False
+
+    normalized_title = " ".join(title.split()).strip().lower()
+    if normalized_title in EXCLUDED_TEXT:
+        return False
+
+    # Prefer Tamil headlines. This also removes most English navigation text.
+    if not is_tamil_text(title):
+        return False
+
+    absolute_url = urljoin(base_url, href)
+    parsed_base = urlparse(base_url)
+    parsed_url = urlparse(absolute_url)
+
+    if parsed_url.scheme not in {"http", "https"}:
+        return False
+
+    # Only collect stories belonging to the publisher's domain.
+    if parsed_url.netloc != parsed_base.netloc:
+        return False
+
+    # Ignore the homepage and obvious non-story utility links.
+    if parsed_url.path in {"", "/"}:
+        return False
+
+    ignored_parts = {
+        "/search",
+        "/login",
+        "/subscribe",
+        "/subscription",
+        "/contact",
+        "/privacy",
+        "/terms",
+    }
+    if any(parsed_url.path.rstrip("/").lower().startswith(part) for part in ignored_parts):
+        return False
+
+    return True
+
+
 def fetch_headlines(source_name: str, url: str):
-    """Fetch unique headline/link pairs from a news homepage."""
-    response = requests.get(url, headers=HEADERS, timeout=30)
+    """Fetch unique headline/link pairs from a news homepage.
+
+    The previous implementation only inspected h1-h4 tags. Both publishers
+    currently expose many article titles as ordinary anchor elements, so the
+    scraper now uses anchors as a fallback and filters them by domain/title.
+    """
+    session = requests.Session()
+    session.headers.update(HEADERS)
+
+    response = session.get(url, timeout=REQUEST_TIMEOUT, allow_redirects=True)
     response.raise_for_status()
+
+    print(
+        f"{source_name}: HTTP {response.status_code}, "
+        f"final URL={response.url}, HTML={len(response.text):,} bytes"
+    )
 
     soup = BeautifulSoup(response.text, "html.parser")
     headlines = []
     seen = set()
 
+    # First prefer semantic heading links where available.
+    candidates = []
     for tag in soup.find_all(["h1", "h2", "h3", "h4"]):
         link = tag.find("a", href=True) or (tag if tag.name == "a" else None)
-        if not link:
-            continue
+        if link:
+            candidates.append(link)
 
+    # Current versions of the sites also render many article titles as plain
+    # <a> elements, so inspect anchors when heading extraction is insufficient.
+    if len(candidates) < MAX_HEADLINES:
+        candidates.extend(soup.find_all("a", href=True))
+
+    for link in candidates:
         title = link.get_text(" ", strip=True)
         href = link.get("href", "").strip()
 
-        if not title or len(title) < 8 or title in seen:
+        if not is_candidate_link(url, href, title):
             continue
 
-        if href.startswith("/"):
-            href = url.rstrip("/") + href
-        elif href.startswith("//"):
-            href = "https:" + href
-
-        if not href.startswith("http"):
+        absolute_url = urljoin(url, href)
+        key = (title, absolute_url)
+        if key in seen:
             continue
 
-        seen.add(title)
-        headlines.append({"title": title, "url": href})
+        seen.add(key)
+        headlines.append({"title": title, "url": absolute_url})
 
         if len(headlines) >= MAX_HEADLINES:
             break
 
+    print(f"{source_name}: extracted {len(headlines)} headline candidates")
     return headlines
 
 
