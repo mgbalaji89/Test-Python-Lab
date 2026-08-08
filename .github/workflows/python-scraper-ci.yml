@@ -23,10 +23,11 @@ jobs:
       - name: Install dependencies
         run: python -m pip install --upgrade pip && pip install -r requirements.txt
 
-      - name: Run scraper
+      # Existing Hindu scraper - keep JSON output unchanged.
+      - name: Run Hindu scraper
         run: python scrape.py
 
-      - name: Validate JSON output
+      - name: Validate Hindu JSON output
         run: |
           python - <<'PY'
           import json
@@ -42,11 +43,23 @@ jobs:
           if not headlines:
               raise SystemExit("Headlines.json contains no headlines")
 
-          print(f"Validated {len(headlines)} headlines")
+          print(f"Validated {len(headlines)} Hindu headlines")
           PY
 
-      - name: Upload headlines artifact
+      - name: Upload Hindu JSON artifact
         uses: actions/upload-artifact@v4
         with:
           name: hindu-headlines
           path: Headlines.json
+
+      # Tamil scraper - generate a separate self-contained HTML report.
+      - name: Run Tamil news scraper
+        run: python scrape_tamil_news.py
+
+      - name: Upload Tamil HTML report
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: tamil-news-report
+          path: tamil_news_report.html
+          if-no-files-found: error
